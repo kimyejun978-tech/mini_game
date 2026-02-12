@@ -188,8 +188,13 @@
     </section>
 
     <aside class="card hud">
-      <div class="title">NEON DODGE: <span style="color:var(--cyan)">RESOLVE</span></div>
-      <div class="sub">made by 김예준 (with openclaw)</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+        <div>
+          <div class="title">NEON DODGE: <span style="color:var(--cyan)">RESOLVE</span></div>
+          <div class="sub">made by 김예준 (with openclaw)</div>
+        </div>
+        <button class="btn ghost" id="adShield" style="padding:8px 10px;font-size:12px;white-space:nowrap">보호막 받기</button>
+      </div>
 
       <div class="touch-controls">
         <button class="touch-btn" id="touchLeft">◀ 왼쪽</button>
@@ -206,7 +211,6 @@
 
       <div class="controls">
         <button class="btn main" id="restart">다시 시작</button>
-        <button class="btn ghost" id="adShield">보호막 받기</button>
         <button class="btn ghost" id="pause">일시정지 / 재개 (Space)</button>
         <button class="btn ghost" id="sound">사운드: ON</button>
       </div>
