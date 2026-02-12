@@ -1054,9 +1054,20 @@
 
     function drawPlayer(){
       ctx.save();
+      const x=player.x,y=player.y,w=player.w,h=player.h;
+
+      // 보호막 오라(활성 시만)
+      if(state.shields > 0){
+        const pulse = 0.55 + 0.45 * Math.sin(performance.now() / 220);
+        ctx.strokeStyle = `rgba(67,231,255,${0.35 + pulse * 0.35})`;
+        ctx.lineWidth = 3;
+        ctx.shadowBlur = 18 + pulse * 10;
+        ctx.shadowColor = 'rgba(67,231,255,.9)';
+        roundRect(x-7, y-7, w+14, h+14, 14, false, true);
+      }
+
       ctx.shadowBlur = 20;
       ctx.shadowColor = '#43e7ff';
-      const x=player.x,y=player.y,w=player.w,h=player.h;
       const g=ctx.createLinearGradient(x,y,x+w,y+h);
       g.addColorStop(0,'#8cf4ff'); g.addColorStop(1,'#3bc6ff');
       ctx.fillStyle = g;
@@ -1107,7 +1118,7 @@
       ctx.fillText(`LEVEL ${state.level}`, 16, 50);
     }
 
-    function roundRect(x,y,w,h,r,fill){
+    function roundRect(x,y,w,h,r,fill,stroke=false){
       ctx.beginPath();
       ctx.moveTo(x+r,y);
       ctx.arcTo(x+w,y,x+w,y+h,r);
@@ -1115,6 +1126,7 @@
       ctx.arcTo(x,y+h,x,y,r);
       ctx.arcTo(x,y,x+w,y,r);
       if(fill) ctx.fill();
+      if(stroke) ctx.stroke();
     }
 
     let lastTs = 0;
