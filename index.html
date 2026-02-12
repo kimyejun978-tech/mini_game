@@ -99,6 +99,15 @@
       border-color:var(--line);
       background:rgba(255,255,255,.03);
     }
+    .shield-chip{
+      border-color: rgba(67,231,255,.45) !important;
+      background: linear-gradient(135deg, rgba(67,231,255,.16), rgba(154,108,255,.14)) !important;
+      box-shadow: 0 0 0 1px rgba(67,231,255,.12) inset, 0 6px 16px rgba(67,231,255,.14);
+      font-weight: 800;
+    }
+    .shield-chip:hover{
+      background: linear-gradient(135deg, rgba(67,231,255,.22), rgba(154,108,255,.2)) !important;
+    }
 
     .kbd{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;color:var(--muted);font-size:12px}
     .kbd i{font-style:normal;padding:3px 7px;border-radius:7px;border:1px solid var(--line);background:rgba(255,255,255,.03);color:#e7eeff}
@@ -193,7 +202,7 @@
           <div class="title">NEON DODGE: <span style="color:var(--cyan)">RESOLVE</span></div>
           <div class="sub">made by 김예준 (with openclaw)</div>
         </div>
-        <button class="btn ghost" id="adShield" style="padding:8px 10px;font-size:12px;white-space:nowrap">보호막 받기</button>
+        <button class="btn ghost shield-chip" id="adShield" style="padding:8px 10px;font-size:12px;white-space:nowrap">보호막 받기</button>
       </div>
 
       <div class="touch-controls">
