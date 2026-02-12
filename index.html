@@ -271,7 +271,7 @@
   <div id="rankNameModal" style="display:none;position:fixed;inset:0;z-index:120;background:rgba(0,0,0,.55);place-items:center">
     <div style="width:min(92vw,360px);background:#0c1328;border:1px solid rgba(120,170,255,.35);border-radius:14px;padding:14px">
       <div style="font-weight:800;font-size:16px;margin-bottom:8px">랭킹 이름</div>
-      <input id="rankNameInput" maxlength="20" inputmode="text" autocapitalize="none" autocorrect="off" autocomplete="off" spellcheck="false" style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid rgba(120,170,255,.35);background:#0a1022;color:#eaf1ff" />
+      <input id="rankNameInput" maxlength="20" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" enterkeyhint="done" style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid rgba(120,170,255,.35);background:#0a1022;color:#eaf1ff" />
       <div id="rankNameHint" style="margin-top:6px;font-size:12px;color:#9fb4df">랭킹 등록하려면 닉네임을 입력해야 해.</div>
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
         <button id="rankNameSkip" class="btn ghost" style="padding:8px 12px">등록 안함</button>
@@ -685,15 +685,13 @@
           rankNameModal.onclick = null;
         };
 
-        rankNameSave.onclick = (e) => {
-          if(e) e.stopPropagation();
+        rankNameSave.onclick = () => {
           const v = (rankNameInput.value || '').trim().slice(0,20);
           if(!v) return;
           cleanup();
           resolve(v);
         };
-        rankNameSkip.onclick = (e) => {
-          if(e) e.stopPropagation();
+        rankNameSkip.onclick = () => {
           cleanup();
           resolve('');
         };
@@ -702,7 +700,6 @@
         rankNameInput.oncompositionstart = () => { isComposing = true; };
         rankNameInput.oncompositionend = () => { isComposing = false; validate(); };
         rankNameInput.onkeydown = (e) => {
-          e.stopPropagation();
           if(e.key === 'Enter' && !isComposing) rankNameSave.onclick();
           if(e.key === 'Escape') rankNameSkip.onclick();
         };
