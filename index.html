@@ -385,6 +385,7 @@
       rankNameOpen:false,
       runToken:'',
       shields:0,
+      shieldHitFx:0,
       adWatching:false,
       adCooldownUntil:0
     };
@@ -902,6 +903,16 @@
       bestEl.textContent = state.best;
       levelEl.textContent = state.level;
       if(shieldEl) shieldEl.textContent = state.shields;
+      if(shieldEl){
+        const pill = shieldEl.closest('.pill');
+        if(pill){
+          pill.style.borderColor = state.shields > 0 ? 'rgba(67,231,255,.55)' : 'var(--line)';
+          pill.style.background = state.shields > 0
+            ? 'linear-gradient(135deg, rgba(67,231,255,.16), rgba(154,108,255,.12))'
+            : 'rgba(255,255,255,.03)';
+          pill.style.boxShadow = state.shields > 0 ? '0 0 0 1px rgba(67,231,255,.14) inset' : 'none';
+        }
+      }
       stateEl.textContent = !state.started ? '대기' : state.paused ? '일시정지' : state.running ? '플레이중' : '종료';
       if(adShieldBtn){
         const remain = Math.max(0, Math.ceil((state.adCooldownUntil - Date.now())/1000));
@@ -1011,6 +1022,7 @@
         if(overlap(player,r)){
           if(state.shields > 0){
             state.shields--;
+            state.shieldHitFx = 60;
             burst(player.x+player.w/2, player.y+player.h/2, '#43e7ff');
             state.rocks.splice(i,1);
             refreshHUD();
@@ -1038,6 +1050,8 @@
         p.life -= dt;
         if(p.life<=0) state.particles.splice(i,1);
       }
+
+      if(state.shieldHitFx > 0) state.shieldHitFx -= dt;
     }
 
     function drawGrid(){
@@ -1116,6 +1130,16 @@
       ctx.font = '600 16px Inter, sans-serif';
       ctx.fillText(`SCORE ${state.score}`, 16, 28);
       ctx.fillText(`LEVEL ${state.level}`, 16, 50);
+
+      if(state.shieldHitFx > 0){
+        const a = Math.max(0, Math.min(1, state.shieldHitFx / 60));
+        ctx.save();
+        ctx.globalAlpha = a;
+        ctx.fillStyle = '#7ef7ff';
+        ctx.font = '900 24px Inter, sans-serif';
+        ctx.fillText('SHIELD -1', W/2 - 70, 92);
+        ctx.restore();
+      }
     }
 
     function roundRect(x,y,w,h,r,fill,stroke=false){
