@@ -67,6 +67,11 @@ export async function onRequest(context) {
     return { score, ts, name };
   }
 
+  function isSuspiciousAutoName(name = '') {
+    const n = String(name || '').trim();
+    return /^플레이어\d{3}$/i.test(n) || /^player\d{3}$/i.test(n);
+  }
+
   function bugTokenFor(name, text, ua = '') {
     const t = Date.now().toString().padStart(13, '0');
     const n = encodeURIComponent(name || '익명');
@@ -131,6 +136,7 @@ export async function onRequest(context) {
       const parsed = parseRankToken(row.token);
       if (!parsed) continue;
       if (parsed.score > 5000) continue;
+      if (isSuspiciousAutoName(parsed.name)) continue;
       const prev = byName.get(parsed.name);
       if (!prev || parsed.score > prev.score || (parsed.score === prev.score && parsed.ts < prev.ts)) {
         byName.set(parsed.name, parsed);
@@ -250,6 +256,25 @@ export async function onRequest(context) {
       const del = await sb(`sessions?token=eq.${encodeURIComponent(String(token))}`, { method: 'DELETE' });
       if (!del.ok) return json(500, { error: 'delete failed' });
       return json(200, { ok: true });
+    }
+
+    if (path === '/api/rank/cleanup-suspicious' && method === 'POST') {
+      if (!isAdminReq()) return json(401, { error: 'admin only' });
+
+      const r = await sb('sessions?select=token&token=like.rank:*&limit=5000');
+      if (!r.ok || !Array.isArray(r.data)) return json(500, { error: 'load failed' });
+
+      const targets = r.data.filter((row) => {
+        const p = parseRankToken(row.token);
+        return p && isSuspiciousAutoName(p.name);
+      });
+
+      for (const row of targets) {
+        await sb(`sessions?token=eq.${encodeURIComponent(String(row.token))}`, { method: 'DELETE' });
+      }
+
+      const top = await getTopRanks(20);
+      return json(200, { ok: true, deleted: targets.length, top });
     }
 
     return json(404, { error: 'not found' });
