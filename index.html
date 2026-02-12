@@ -271,10 +271,11 @@
   <div id="rankNameModal" style="display:none;position:fixed;inset:0;z-index:120;background:rgba(0,0,0,.55);place-items:center">
     <div style="width:min(92vw,360px);background:#0c1328;border:1px solid rgba(120,170,255,.35);border-radius:14px;padding:14px">
       <div style="font-weight:800;font-size:16px;margin-bottom:8px">랭킹 이름</div>
-      <input id="rankNameInput" maxlength="20" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false" lang="ko" style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid rgba(120,170,255,.35);background:#0a1022;color:#eaf1ff" />
+      <input id="rankNameInput" maxlength="20" inputmode="text" autocapitalize="none" autocorrect="off" autocomplete="off" spellcheck="false" style="width:100%;padding:10px 12px;border-radius:10px;border:1px solid rgba(120,170,255,.35);background:#0a1022;color:#eaf1ff" />
+      <div id="rankNameHint" style="margin-top:6px;font-size:12px;color:#9fb4df">랭킹 등록하려면 닉네임을 입력해야 해.</div>
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
-        <button id="rankNameSkip" class="btn ghost" style="padding:8px 12px">취소</button>
-        <button id="rankNameSave" class="btn main" style="padding:8px 12px">저장</button>
+        <button id="rankNameSkip" class="btn ghost" style="padding:8px 12px">등록 안함</button>
+        <button id="rankNameSave" class="btn main" style="padding:8px 12px">등록</button>
       </div>
     </div>
   </div>
@@ -358,6 +359,7 @@
     const rankNameInput = document.getElementById('rankNameInput');
     const rankNameSave = document.getElementById('rankNameSave');
     const rankNameSkip = document.getElementById('rankNameSkip');
+    const rankNameHint = document.getElementById('rankNameHint');
     let navRevealTimer = null;
     let bugAdminKey = sessionStorage.getItem('bug_admin_key') || '';
     let runPingTimer = null;
@@ -475,11 +477,7 @@
     function updateSoundBtn(){ if(soundBtn) soundBtn.textContent = `사운드: ${state.soundOn ? 'ON' : 'OFF'}`; }
 
     function rankName(){
-      const saved = localStorage.getItem('neon_dodge_rank_name');
-      if(saved) return saved;
-      const d = `플레이어${Math.floor(Math.random()*900+100)}`;
-      localStorage.setItem('neon_dodge_rank_name', d);
-      return d;
+      return (localStorage.getItem('neon_dodge_rank_name') || '').trim();
     }
 
     function adminHeaders(extra={}){
@@ -654,17 +652,25 @@
 
     function askRankName(defaultName){
       return new Promise((resolve) => {
-        if(!rankNameModal) return resolve(defaultName);
+        if(!rankNameModal) return resolve(defaultName || '');
 
         state.rankNameOpen = true;
         rankNameModal.style.display = 'grid';
-        rankNameInput.value = defaultName;
+        rankNameInput.value = defaultName || '';
         let isComposing = false;
 
-        // 모바일/데스크톱 모두 안정적으로 포커스
+        const validate = () => {
+          const v = (rankNameInput.value || '').trim();
+          const ok = v.length > 0;
+          if(rankNameSave) rankNameSave.disabled = !ok;
+          if(rankNameHint) rankNameHint.style.color = ok ? '#8fe7c2' : '#9fb4df';
+          if(rankNameHint) rankNameHint.textContent = ok ? '좋아, 이 닉네임으로 등록할게.' : '랭킹 등록하려면 닉네임을 입력해야 해.';
+        };
+
         setTimeout(() => {
           rankNameInput.focus();
           rankNameInput.select();
+          validate();
         }, 30);
 
         const cleanup = () => {
@@ -673,6 +679,7 @@
           rankNameSave.onclick = null;
           rankNameSkip.onclick = null;
           rankNameInput.onkeydown = null;
+          rankNameInput.oninput = null;
           rankNameInput.oncompositionstart = null;
           rankNameInput.oncompositionend = null;
           rankNameModal.onclick = null;
@@ -681,24 +688,25 @@
         rankNameSave.onclick = (e) => {
           if(e) e.stopPropagation();
           const v = (rankNameInput.value || '').trim().slice(0,20);
+          if(!v) return;
           cleanup();
-          resolve(v || defaultName);
+          resolve(v);
         };
         rankNameSkip.onclick = (e) => {
           if(e) e.stopPropagation();
           cleanup();
-          resolve(defaultName);
+          resolve('');
         };
 
+        rankNameInput.oninput = validate;
         rankNameInput.oncompositionstart = () => { isComposing = true; };
-        rankNameInput.oncompositionend = () => { isComposing = false; };
+        rankNameInput.oncompositionend = () => { isComposing = false; validate(); };
         rankNameInput.onkeydown = (e) => {
           e.stopPropagation();
           if(e.key === 'Enter' && !isComposing) rankNameSave.onclick();
           if(e.key === 'Escape') rankNameSkip.onclick();
         };
 
-        // 모달 바깥 클릭 시 닫기
         rankNameModal.onclick = (e) => {
           if(e.target === rankNameModal) rankNameSkip.onclick();
         };
@@ -740,29 +748,13 @@
     async function submitRanking(score){
       if(score <= 0) return;
       if(!state.runToken) return; // 서버에서 발급한 런 토큰 없으면 제출 차단
-      let name = rankName();
 
-      // 현재 점수가 Top10 후보면 이름 입력 모달 표시
-      let shouldAsk = false;
-      try {
-        const tr = await fetch('/api/rank/top');
-        const td = await tr.json();
-        const top = td.top || [];
-        if(top.length < 10) {
-          shouldAsk = true;
-        } else {
-          const tenth = Number(top[9]?.score || 0);
-          if(score >= tenth) shouldAsk = true;
-        }
-      } catch {
-        // 조회 실패 시 기존 동작 유지(물어봄)
-        shouldAsk = true;
+      let name = await askRankName(rankName());
+      if(!name){
+        // 닉네임 미입력 시 랭킹 등록 안 함
+        return;
       }
-
-      if(shouldAsk){
-        name = await askRankName(name);
-        localStorage.setItem('neon_dodge_rank_name', name);
-      }
+      localStorage.setItem('neon_dodge_rank_name', name);
 
       try {
         const r = await fetch('/api/rank/submit', {
