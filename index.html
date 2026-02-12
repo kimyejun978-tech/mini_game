@@ -360,6 +360,7 @@
     const rankNameSkip = document.getElementById('rankNameSkip');
     let navRevealTimer = null;
     let bugAdminKey = sessionStorage.getItem('bug_admin_key') || '';
+    let runPingTimer = null;
 
     const W = cv.width, H = cv.height;
     const MAINTENANCE_MODE = false;
@@ -704,11 +705,33 @@
       });
     }
 
+    async function sendRunPing(){
+      if(!state.runToken || !state.running || state.paused) return;
+      try{
+        await fetch('/api/run/ping', {
+          method:'POST',
+          headers:adminHeaders({'content-type':'application/json'}),
+          body: JSON.stringify({ runToken: state.runToken, score: state.score, x: Math.floor(player.x) })
+        });
+      }catch{}
+    }
+
+    function startRunPingLoop(){
+      if(runPingTimer){ clearInterval(runPingTimer); runPingTimer = null; }
+      sendRunPing();
+      runPingTimer = setInterval(sendRunPing, 2000);
+    }
+
+    function stopRunPingLoop(){
+      if(runPingTimer){ clearInterval(runPingTimer); runPingTimer = null; }
+    }
+
     async function startRun(){
       try{
         const r = await fetch('/api/run/start', { method:'POST', headers: adminHeaders() });
         const d = await r.json();
         state.runToken = (r.ok && d.runToken) ? d.runToken : '';
+        if(state.runToken) startRunPingLoop();
       }catch{
         state.runToken = '';
       }
@@ -926,6 +949,7 @@
       state.running = startNow;
       state.paused = false;
       state.runToken = '';
+      stopRunPingLoop();
       if(startNow) startRun();
       if(startNow && state.soundOn) startBgm(); else stopBgm();
       state.tick = 0;
@@ -944,6 +968,7 @@
     function gameOver(){
       state.running = false;
       state.paused = false;
+      stopRunPingLoop();
       stopBgm();
       sfxHit();
       if(state.score > state.best){

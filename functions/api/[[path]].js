@@ -106,6 +106,26 @@ export async function onRequest(context) {
     return { ts };
   }
 
+  function runPingTokenFor(runToken, score, x) {
+    const rt = encodeURIComponent(String(runToken || ''));
+    const ts = Date.now();
+    const s = Math.max(0, Math.floor(Number(score) || 0));
+    const px = Math.max(0, Math.floor(Number(x) || 0));
+    return `runping:${rt}:${ts}:${s}:${px}`;
+  }
+
+  function parseRunPingToken(token) {
+    if (!token || !token.startsWith('runping:')) return null;
+    const parts = token.split(':');
+    if (parts.length < 5) return null;
+    const runToken = decodeURIComponent(parts[1] || '');
+    const ts = Number(parts[2]);
+    const score = Number(parts[3]);
+    const x = Number(parts[4]);
+    if (!runToken || !Number.isFinite(ts) || !Number.isFinite(score) || !Number.isFinite(x)) return null;
+    return { runToken, ts, score, x };
+  }
+
   async function ensureGameUserId() {
     const q = await sb(`users?select=id,name,student_id&name=eq.${encodeURIComponent(GAME_USER_NAME)}&student_id=eq.${encodeURIComponent(GAME_USER_ID)}&limit=1`);
     if (q.ok && Array.isArray(q.data) && q.data[0]?.id) return q.data[0].id;
@@ -180,6 +200,28 @@ export async function onRequest(context) {
       return json(200, { ok: true, runToken });
     }
 
+    if (path === '/api/run/ping' && method === 'POST') {
+      const { runToken, score, x } = await parseBody();
+      if (!runToken) return json(400, { error: 'run token required' });
+
+      const run = parseRunToken(String(runToken));
+      if (!run) return json(400, { error: 'run token invalid' });
+      if (Date.now() - run.ts > 10 * 60 * 1000) return json(400, { error: 'run token timeout' });
+
+      const tokenCheck = await sb(`sessions?select=token&token=eq.${encodeURIComponent(String(runToken))}&limit=1`);
+      if (!tokenCheck.ok || !Array.isArray(tokenCheck.data) || !tokenCheck.data[0]) {
+        return json(400, { error: 'run token expired' });
+      }
+
+      const userId = await ensureGameUserId();
+      if (!userId) return json(500, { error: 'game user init failed' });
+
+      const pingToken = runPingTokenFor(runToken, score, x);
+      const ins = await sb('sessions', { method: 'POST', body: { token: pingToken, user_id: userId } });
+      if (!ins.ok) return json(500, { error: 'ping failed' });
+      return json(200, { ok: true });
+    }
+
     if (path === '/api/rank/submit' && method === 'POST') {
       if (MAINTENANCE_MODE && !isAdminReq()) return json(503, { error: 'server maintenance' });
 
@@ -206,7 +248,42 @@ export async function onRequest(context) {
         return json(400, { error: 'run token expired' });
       }
 
+      // seed 기반 1차 검증 대체: 런 중 서버 ping 증거 확인
+      const pingPrefix = `runping:${encodeURIComponent(String(runToken))}:`;
+      const pingRowsRaw = await sb(`sessions?select=token&token=like.${encodeURIComponent(pingPrefix)}*&limit=1500`);
+      const pingRows = (pingRowsRaw.ok && Array.isArray(pingRowsRaw.data)) ? pingRowsRaw.data : [];
+      const pings = pingRows
+        .map((r) => parseRunPingToken(r.token))
+        .filter((x) => x && x.runToken === String(runToken))
+        .sort((a, b) => a.ts - b.ts);
+
+      const minPings = Math.max(3, Math.min(20, Math.floor(cleanScore / 8)));
+      if (pings.length < minPings) {
+        return json(400, { error: 'insufficient run proof' });
+      }
+
+      let prev = pings[0];
+      for (let i = 1; i < pings.length; i++) {
+        const cur = pings[i];
+        if (cur.ts <= prev.ts) return json(400, { error: 'invalid run proof (time)' });
+        if (cur.score < prev.score) return json(400, { error: 'invalid run proof (score)' });
+
+        const dt = (cur.ts - prev.ts) / 1000;
+        const ds = cur.score - prev.score;
+        if (dt > 0 && ds / dt > 14) return json(400, { error: 'invalid run proof (speed)' });
+        prev = cur;
+      }
+
+      const lastPingScore = pings[pings.length - 1]?.score ?? 0;
+      if (cleanScore > lastPingScore + 2) {
+        return json(400, { error: 'score mismatch with run proof' });
+      }
+
+      // run 토큰 및 ping 증거 소모
       await sb(`sessions?token=eq.${encodeURIComponent(String(runToken))}`, { method: 'DELETE' });
+      for (const row of pingRows) {
+        await sb(`sessions?token=eq.${encodeURIComponent(String(row.token))}`, { method: 'DELETE' });
+      }
 
       const userId = await ensureGameUserId();
       if (!userId) return json(500, { error: 'game user init failed' });
