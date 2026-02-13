@@ -74,6 +74,8 @@ export async function onRequest(context) {
 
   function isTestLikeName(name = '') {
     const n = String(name || '').trim().toLowerCase();
+    // automated load tests / synthetic accounts
+    if (/^(t_|test_)/.test(n)) return true;
     return /test|testing|테스트|테스트중/.test(n);
   }
 
