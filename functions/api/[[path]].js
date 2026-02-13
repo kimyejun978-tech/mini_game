@@ -365,20 +365,19 @@ export async function onRequest(context) {
     if (path === '/api/rank/cleanup-test' && method === 'POST') {
       if (!isAdminReq()) return json(401, { error: 'admin only' });
 
-      const r = await sb('sessions?select=token&token=like.rank:*&limit=5000');
-      if (!r.ok || !Array.isArray(r.data)) return json(500, { error: 'load failed' });
+      // Avoid "Too many subrequests" by using server-side filtered deletes.
+      // Token format: rank:<score>:<ts>:<name>
+      const patterns = [
+        'rank:%:%:t_%',
+        'rank:%:%:test_%'
+      ];
 
-      const targets = r.data.filter((row) => {
-        const p = parseRankToken(row.token);
-        return p && isTestLikeName(p.name);
-      });
-
-      for (const row of targets) {
-        await sb(`sessions?token=eq.${encodeURIComponent(String(row.token))}`, { method: 'DELETE' });
+      for (const p of patterns) {
+        await sb(`sessions?token=like.${encodeURIComponent(p)}`, { method: 'DELETE' });
       }
 
       const top = await getTopRanks(20);
-      return json(200, { ok: true, deleted: targets.length, top });
+      return json(200, { ok: true, top });
     }
 
     return json(404, { error: 'not found' });
