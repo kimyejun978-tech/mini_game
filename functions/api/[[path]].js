@@ -383,6 +383,9 @@ export async function onRequest(context) {
 
     return json(404, { error: 'not found' });
   } catch (e) {
+    if (isAdminReq()) {
+      return json(500, { error: 'server error', detail: String(e?.message || e) });
+    }
     return json(500, { error: 'server error' });
   }
 }
