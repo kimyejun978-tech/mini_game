@@ -95,21 +95,38 @@ function rateToken(scope, key, ts) {
 }
 
 function hostOf(req) {
-  return String(req.headers.host || '').toLowerCase();
+  return String(req.headers['x-forwarded-host'] || req.headers.host || '').toLowerCase();
+}
+
+function normalizeHost(h) {
+  return String(h || '').toLowerCase().replace(/^https?:\/\//, '').replace(/:\d+$/, '').replace(/^www\./, '');
+}
+
+function hostnameFromUrlLike(v) {
+  try {
+    const u = new URL(String(v));
+    return normalizeHost(u.hostname);
+  } catch {
+    return normalizeHost(String(v || '').split('/')[0]);
+  }
 }
 
 function sameOriginGuard(req) {
-  const host = hostOf(req);
+  const rawHost = hostOf(req);
+  const host = normalizeHost(rawHost);
   const origin = String(req.headers.origin || '');
   const referer = String(req.headers.referer || '');
 
-  // Browser 요청은 origin/referer 가 현재 호스트와 일치해야 함
-  const originOk = origin ? origin.toLowerCase().includes(host) : false;
-  const refererOk = referer ? referer.toLowerCase().includes(host) : false;
-
   // 둘 다 없으면 (직접 스크립트 호출 등) 거부
   if (!origin && !referer) return false;
-  return originOk || refererOk;
+
+  const candidates = new Set([host, normalizeHost(rawHost), normalizeHost(req.headers.host || '')]);
+  candidates.delete('');
+
+  const originHost = origin ? hostnameFromUrlLike(origin) : '';
+  const refererHost = referer ? hostnameFromUrlLike(referer) : '';
+
+  return (originHost && candidates.has(originHost)) || (refererHost && candidates.has(refererHost));
 }
 
 function suspiciousUa(ua = '') {
